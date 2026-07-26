@@ -1,0 +1,16 @@
+services:
+  ml:
+    build: .
+    container_name: tpp_ml
+    ports:
+      - "8002:8000"
+    env_file:
+      - .env
+    networks:
+      - tpp-net
+    restart: unless-stopped
+
+networks:
+  tpp-net:
+    external: true
+    name: tpp-net

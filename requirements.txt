@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+python-jose[cryptography]
+httpx
+scikit-learn
+numpy
+pandas
+pydantic-settings
