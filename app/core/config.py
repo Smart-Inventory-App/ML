@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
 
     APP_BACKEND_URL: str = "http://localhost:8000"
+    INTERNAL_SERVICE_TOKEN: str = "change-this-internal-token"
 
     # Stage thresholds
     MIN_RECORDS_FOR_WMA: int = 10
