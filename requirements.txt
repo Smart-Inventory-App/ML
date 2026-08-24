@@ -5,4 +5,5 @@ httpx
 scikit-learn
 numpy
 pandas
+joblib
 pydantic-settings
