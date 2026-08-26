@@ -4,12 +4,28 @@ Requiere >= 8 semanas de historial. Hasta que haya modelo entrenado, delega a mo
 """
 from app.predictor import moving_average
 
+# Solo se normalizan las features numéricas continuas; las one-hot no se tocan.
+_NUMERIC_FEATURES = 5   # rolling_mean_7, rolling_mean_14, freq_per_week, days_since_last, stock
+
+FEATURE_NAMES = [
+    "rolling_mean_7",
+    "rolling_mean_14",
+    "freq_per_week",
+    "days_since_last",
+    "stock",
+    *[f"dow_{i}" for i in range(7)],
+    *[f"mon_{i}" for i in range(1, 13)],
+    "categoria",
+]
+
 _model = None
+_scaler = None
 
 
-def set_model(model) -> None:
-    global _model
+def set_model(model, scaler=None) -> None:
+    global _model, _scaler
     _model = model
+    _scaler = scaler
 
 
 def is_trained() -> bool:
@@ -19,8 +35,12 @@ def is_trained() -> bool:
 def predict(records: list[dict], product: dict) -> float:
     if not is_trained():
         return moving_average.predict(records)
+    import numpy as np
     features = _build_features(records, product)
-    return float(_model.predict([features])[0])
+    X = np.array([features])
+    if _scaler is not None:
+        X[:, :_NUMERIC_FEATURES] = _scaler.transform(X[:, :_NUMERIC_FEATURES])
+    return float(_model.predict(X)[0])
 
 
 def _build_features(records: list[dict], product: dict) -> list[float]:
@@ -49,7 +69,6 @@ def _build_features(records: list[dict], product: dict) -> list[float]:
 
     stock = product.get("stock", 0)
 
-    # one-hot encoding día de semana (0-6) y mes (1-12)
     dow = [1.0 if day_of_week == i else 0.0 for i in range(7)]
     mon = [1.0 if month == i else 0.0 for i in range(1, 13)]
 
@@ -57,7 +76,6 @@ def _build_features(records: list[dict], product: dict) -> list[float]:
 
 
 def _compute_daily_rate(records: list[dict]) -> float:
-    """Tasa real de consumo (unidades/día) para un conjunto de registros."""
     from datetime import datetime
 
     if len(records) < 2:
@@ -75,26 +93,24 @@ def _compute_daily_rate(records: list[dict]) -> float:
 def train(all_events: list[dict], all_products: list[dict]) -> dict:
     """
     Entrena el GBM con todos los eventos de consumo disponibles.
-    Retorna métricas {mae, mape, n_samples, n_products} o lanza ValueError si no hay suficientes datos.
+    Aplica StandardScaler sobre features numéricas y calcula importancia de features.
+    Retorna métricas {mae, mape, n_samples, n_products, feature_importances} o lanza ValueError.
     """
     import numpy as np
     from sklearn.ensemble import GradientBoostingRegressor
     from sklearn.metrics import mean_absolute_error
-    from sklearn.preprocessing import LabelEncoder
+    from sklearn.preprocessing import LabelEncoder, StandardScaler
     from app.core.config import settings
     from datetime import datetime
 
-    # Agrupar eventos por producto (solo "consumed")
     from collections import defaultdict
     by_product: dict[int, list[dict]] = defaultdict(list)
     for e in all_events:
         if e.get("event_type", "consumed") == "consumed":
             by_product[e["product_id"]].append(e)
 
-    # Mapa de producto_id → producto
     product_map = {p["id"]: p for p in all_products}
 
-    # Categorías para encoding
     all_cats = list({p.get("categoria", "") or "" for p in all_products})
     le = LabelEncoder()
     le.fit(all_cats)
@@ -135,6 +151,10 @@ def train(all_events: list[dict], all_products: list[dict]) -> dict:
     X = np.array(rows_X)
     y = np.array(rows_y)
 
+    # Normalizar solo features numéricas continuas (primeras _NUMERIC_FEATURES columnas)
+    scaler = StandardScaler()
+    X[:, :_NUMERIC_FEATURES] = scaler.fit_transform(X[:, :_NUMERIC_FEATURES])
+
     # Split 80/20
     split = max(1, int(len(X) * 0.8))
     X_train, X_test = X[:split], X[split:]
@@ -148,14 +168,25 @@ def train(all_events: list[dict], all_products: list[dict]) -> dict:
     mae_daily = float(mean_absolute_error(y_test, y_pred))
     mae_weekly = mae_daily * 7
 
-    # MAPE — evitar división por cero
     mask = y_test > 0
     mape = float(np.mean(np.abs((y_test[mask] - y_pred[mask]) / y_test[mask])) * 100) if mask.any() else 999.0
 
+    # Importancia de features — ordenada de mayor a menor
+    feature_importances = {
+        name: round(float(imp), 6)
+        for name, imp in sorted(
+            zip(FEATURE_NAMES, model.feature_importances_),
+            key=lambda x: x[1],
+            reverse=True,
+        )
+    }
+
     return {
         "model": model,
+        "scaler": scaler,
         "mae": round(mae_weekly, 4),
         "mape": round(mape, 2),
         "n_samples": len(rows_X),
         "n_products": len(by_product),
+        "feature_importances": feature_importances,
     }

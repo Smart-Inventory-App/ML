@@ -1,6 +1,6 @@
 """
 Gestión de versiones del modelo GBM.
-Persiste metadata en versions.json y el modelo en archivos .pkl dentro de MODEL_DIR.
+Persiste metadata en versions.json y el modelo (+ scaler) en archivos .pkl dentro de MODEL_DIR.
 """
 import json
 import os
@@ -37,17 +37,30 @@ def get_active_version() -> Optional[dict]:
     return None
 
 
-def load_active_model():
+def load_active_model() -> tuple | None:
+    """Retorna (model, scaler) o None si no hay versión activa."""
     v = get_active_version()
     if v is None:
         return None
     path = os.path.join(MODEL_DIR, v["model_file"])
     if not os.path.exists(path):
         return None
-    return joblib.load(path)
+    data = joblib.load(path)
+    # Compatibilidad con versiones antiguas que guardaban solo el modelo
+    if isinstance(data, dict):
+        return data.get("model"), data.get("scaler")
+    return data, None
 
 
-def save_new_version(model, mae: float, mape: float, n_samples: int, n_products: int) -> dict:
+def save_new_version(
+    model,
+    mae: float,
+    mape: float,
+    n_samples: int,
+    n_products: int,
+    scaler=None,
+    feature_importances: dict | None = None,
+) -> dict:
     versions = _load_versions()
 
     version_id = f"v{len(versions) + 1}"
@@ -62,10 +75,11 @@ def save_new_version(model, mae: float, mape: float, n_samples: int, n_products:
         "n_products": n_products,
         "status": "inactive",
         "model_file": model_file,
+        "feature_importances": feature_importances or {},
     }
 
     os.makedirs(MODEL_DIR, exist_ok=True)
-    joblib.dump(model, os.path.join(MODEL_DIR, model_file))
+    joblib.dump({"model": model, "scaler": scaler}, os.path.join(MODEL_DIR, model_file))
 
     versions.append(new_version)
     _save_versions(versions)

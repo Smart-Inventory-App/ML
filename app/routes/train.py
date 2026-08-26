@@ -45,17 +45,20 @@ async def trigger_training():
             "mae": mae,
             "mape": mape,
             "n_samples": result["n_samples"],
+            "feature_importances": result["feature_importances"],
         }
 
     version = model_store.save_new_version(
         model=result["model"],
+        scaler=result["scaler"],
         mae=mae,
         mape=mape,
         n_samples=result["n_samples"],
         n_products=result["n_products"],
+        feature_importances=result["feature_importances"],
     )
 
-    return {"status": "saved", "version": version}
+    return {"status": "saved", "version": version, "feature_importances": result["feature_importances"]}
 
 
 class PredictProductRequest(BaseModel):
@@ -98,8 +101,9 @@ def activate_model(version_id: str):
     if version is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Versión no encontrada")
 
-    model = model_store.load_active_model()
-    if model:
-        gbm.set_model(model)
+    result = model_store.load_active_model()
+    if result:
+        model, scaler = result
+        gbm.set_model(model, scaler)
 
     return {"status": "activated", "version": version}

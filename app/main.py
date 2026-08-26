@@ -11,9 +11,10 @@ from app.services import model_store
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    model = model_store.load_active_model()
-    if model:
-        gbm.set_model(model)
+    result = model_store.load_active_model()
+    if result:
+        model, scaler = result
+        gbm.set_model(model, scaler)
     yield
 
 
