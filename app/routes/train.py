@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Security, status
 from fastapi.security import APIKeyHeader
+from pydantic import BaseModel
 
 from app.core.config import settings
 from app.predictor import gbm
@@ -55,6 +56,40 @@ async def trigger_training():
     )
 
     return {"status": "saved", "version": version}
+
+
+class PredictProductRequest(BaseModel):
+    events: list[dict]
+    product: dict
+
+
+@router.post("/predict-product", dependencies=[Depends(_verify_service_token)])
+def predict_product_internal(body: PredictProductRequest):
+    """
+    Predicción interna: recibe eventos y datos del producto, devuelve tasa diaria
+    y días estimados hasta que se agote el stock. Usado por App_backend para alertas.
+    """
+    from app.predictor import bayesian, moving_average
+    from app.predictor.stage import determine_stage
+
+    consumed = [e for e in body.events if e.get("event_type", "consumed") == "consumed"]
+    stage = determine_stage(consumed)
+
+    if stage == "bayesian":
+        daily_rate = bayesian.predict(consumed)
+    elif stage == "moving_average":
+        daily_rate = moving_average.predict(consumed)
+    else:
+        daily_rate = gbm.predict(consumed, body.product)
+
+    stock = body.product.get("stock", 0)
+    days_until_stockout = round(stock / daily_rate) if daily_rate > 0 else None
+
+    return {
+        "daily_rate": round(daily_rate, 4),
+        "days_until_stockout": days_until_stockout,
+        "stage": stage,
+    }
 
 
 @router.post("/{version_id}/activate", dependencies=[Depends(_verify_service_token)])
