@@ -60,14 +60,16 @@ def save_new_version(
     n_products: int,
     scaler=None,
     feature_importances: dict | None = None,
+    model_type: str = "gbm",
 ) -> dict:
     versions = _load_versions()
 
     version_id = f"v{len(versions) + 1}"
-    model_file = f"gbm_{version_id}.pkl"
+    model_file = f"{model_type}_{version_id}.pkl"
 
     new_version = {
         "id": version_id,
+        "model_type": model_type,
         "trained_at": datetime.now(timezone.utc).isoformat(),
         "mae": round(mae, 4),
         "mape": round(mape, 2),
