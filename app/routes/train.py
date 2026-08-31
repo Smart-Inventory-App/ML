@@ -1,3 +1,5 @@
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException, Security, status
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
@@ -21,8 +23,12 @@ def list_models():
     return model_store.list_versions()
 
 
+class TrainRequest(BaseModel):
+    model_type: Literal["gbm", "xgboost", "lightgbm", "svr"] = "gbm"
+
+
 @router.post("/train", dependencies=[Depends(_verify_service_token)])
-async def trigger_training():
+async def trigger_training(body: TrainRequest = TrainRequest()):
     try:
         all_events = await backend_client.get_all_consumption()
         all_products = await backend_client.get_all_products()
@@ -30,7 +36,7 @@ async def trigger_training():
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Error obteniendo datos: {e}")
 
     try:
-        result = gbm.train(all_events, all_products)
+        result = gbm.train(all_events, all_products, model_type=body.model_type)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
 
@@ -45,6 +51,7 @@ async def trigger_training():
             "mae": mae,
             "mape": mape,
             "n_samples": result["n_samples"],
+            "model_type": body.model_type,
             "feature_importances": result["feature_importances"],
         }
 
@@ -56,9 +63,28 @@ async def trigger_training():
         n_samples=result["n_samples"],
         n_products=result["n_products"],
         feature_importances=result["feature_importances"],
+        model_type=body.model_type,
     )
 
-    return {"status": "saved", "version": version, "feature_importances": result["feature_importances"]}
+    return {
+        "status": "saved",
+        "version": version,
+        "model_type": body.model_type,
+        "feature_importances": result["feature_importances"],
+    }
+
+
+@router.get("/{version_id}/feature-importances", dependencies=[Depends(_verify_service_token)])
+def get_feature_importances(version_id: str):
+    versions = model_store.list_versions()
+    version = next((v for v in versions if v["id"] == version_id), None)
+    if version is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Versión no encontrada")
+    return {
+        "version_id": version_id,
+        "model_type": version.get("model_type", "gbm"),
+        "feature_importances": version.get("feature_importances", {}),
+    }
 
 
 class PredictProductRequest(BaseModel):

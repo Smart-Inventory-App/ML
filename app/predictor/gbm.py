@@ -1,11 +1,11 @@
 """
-Stage 3 — Gradient Boosting Regressor.
+Stage 3 — Gradient Boosting / XGBoost / LightGBM / SVR.
 Requiere >= 8 semanas de historial. Hasta que haya modelo entrenado, delega a moving_average.
 """
 from app.predictor import moving_average
 
 # Solo se normalizan las features numéricas continuas; las one-hot no se tocan.
-_NUMERIC_FEATURES = 5   # rolling_mean_7, rolling_mean_14, freq_per_week, days_since_last, stock
+_NUMERIC_FEATURES = 6   # rolling_mean_7, rolling_mean_14, freq_per_week, days_since_last, stock, stock_ratio
 
 FEATURE_NAMES = [
     "rolling_mean_7",
@@ -13,6 +13,7 @@ FEATURE_NAMES = [
     "freq_per_week",
     "days_since_last",
     "stock",
+    "stock_ratio",
     *[f"dow_{i}" for i in range(7)],
     *[f"mon_{i}" for i in range(1, 13)],
     "categoria",
@@ -68,11 +69,13 @@ def _build_features(records: list[dict], product: dict) -> list[float]:
     month = last_dt.month
 
     stock = product.get("stock", 0)
+    stock_minimo = product.get("stock_minimo") or 0
+    stock_ratio = stock / stock_minimo if stock_minimo > 0 else 0.0
 
     dow = [1.0 if day_of_week == i else 0.0 for i in range(7)]
     mon = [1.0 if month == i else 0.0 for i in range(1, 13)]
 
-    return [rolling_mean_7, rolling_mean_14, freq_per_week, days_since_last, stock] + dow + mon
+    return [rolling_mean_7, rolling_mean_14, freq_per_week, days_since_last, stock, stock_ratio] + dow + mon
 
 
 def _compute_daily_rate(records: list[dict]) -> float:
@@ -90,14 +93,29 @@ def _compute_daily_rate(records: list[dict]) -> float:
     return sum(r["quantity"] for r in records) / span_days
 
 
-def train(all_events: list[dict], all_products: list[dict]) -> dict:
+def _make_regressor(model_type: str):
+    """Instancia el regresor según model_type."""
+    if model_type == "xgboost":
+        from xgboost import XGBRegressor
+        return XGBRegressor(n_estimators=100, max_depth=4, learning_rate=0.1, random_state=42, verbosity=0)
+    if model_type == "lightgbm":
+        from lightgbm import LGBMRegressor
+        return LGBMRegressor(n_estimators=100, max_depth=4, learning_rate=0.1, random_state=42, verbose=-1)
+    if model_type == "svr":
+        from sklearn.svm import SVR
+        return SVR(kernel="rbf", C=1.0, epsilon=0.1)
+    # default: gbm
+    from sklearn.ensemble import GradientBoostingRegressor
+    return GradientBoostingRegressor(n_estimators=100, max_depth=4, learning_rate=0.1, random_state=42)
+
+
+def train(all_events: list[dict], all_products: list[dict], model_type: str = "gbm") -> dict:
     """
-    Entrena el GBM con todos los eventos de consumo disponibles.
+    Entrena el modelo seleccionado con todos los eventos de consumo disponibles.
     Aplica StandardScaler sobre features numéricas y calcula importancia de features.
-    Retorna métricas {mae, mape, n_samples, n_products, feature_importances} o lanza ValueError.
+    Retorna métricas {mae, mape, n_samples, n_products, feature_importances, model_type} o lanza ValueError.
     """
     import numpy as np
-    from sklearn.ensemble import GradientBoostingRegressor
     from sklearn.metrics import mean_absolute_error
     from sklearn.preprocessing import LabelEncoder, StandardScaler
     from app.core.config import settings
@@ -160,7 +178,7 @@ def train(all_events: list[dict], all_products: list[dict]) -> dict:
     X_train, X_test = X[:split], X[split:]
     y_train, y_test = y[:split], y[split:]
 
-    model = GradientBoostingRegressor(n_estimators=100, max_depth=4, learning_rate=0.1, random_state=42)
+    model = _make_regressor(model_type)
     model.fit(X_train, y_train)
 
     y_pred = model.predict(X_test)
@@ -171,15 +189,18 @@ def train(all_events: list[dict], all_products: list[dict]) -> dict:
     mask = y_test > 0
     mape = float(np.mean(np.abs((y_test[mask] - y_pred[mask]) / y_test[mask])) * 100) if mask.any() else 999.0
 
-    # Importancia de features — ordenada de mayor a menor
-    feature_importances = {
-        name: round(float(imp), 6)
-        for name, imp in sorted(
-            zip(FEATURE_NAMES, model.feature_importances_),
-            key=lambda x: x[1],
-            reverse=True,
-        )
-    }
+    # Importancia de features — SVR no la soporta nativamente
+    if hasattr(model, "feature_importances_"):
+        feature_importances = {
+            name: round(float(imp), 6)
+            for name, imp in sorted(
+                zip(FEATURE_NAMES, model.feature_importances_),
+                key=lambda x: x[1],
+                reverse=True,
+            )
+        }
+    else:
+        feature_importances = {}
 
     return {
         "model": model,
@@ -189,4 +210,5 @@ def train(all_events: list[dict], all_products: list[dict]) -> dict:
         "n_samples": len(rows_X),
         "n_products": len(by_product),
         "feature_importances": feature_importances,
+        "model_type": model_type,
     }
