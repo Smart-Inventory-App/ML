@@ -95,15 +95,18 @@ def _compute_daily_rate(records: list[dict]) -> float:
 
 def _make_regressor(model_type: str):
     """Instancia el regresor según model_type."""
-    if model_type == "xgboost":
-        from xgboost import XGBRegressor
-        return XGBRegressor(n_estimators=100, max_depth=4, learning_rate=0.1, random_state=42, verbosity=0)
-    if model_type == "lightgbm":
-        from lightgbm import LGBMRegressor
-        return LGBMRegressor(n_estimators=100, max_depth=4, learning_rate=0.1, random_state=42, verbose=-1)
-    if model_type == "svr":
-        from sklearn.svm import SVR
-        return SVR(kernel="rbf", C=1.0, epsilon=0.1)
+    try:
+        if model_type == "xgboost":
+            from xgboost import XGBRegressor
+            return XGBRegressor(n_estimators=100, max_depth=4, learning_rate=0.1, random_state=42, verbosity=0)
+        if model_type == "lightgbm":
+            from lightgbm import LGBMRegressor
+            return LGBMRegressor(n_estimators=100, max_depth=4, learning_rate=0.1, random_state=42, verbose=-1)
+        if model_type == "svr":
+            from sklearn.svm import SVR
+            return SVR(kernel="rbf", C=1.0, epsilon=0.1)
+    except ImportError as e:
+        raise ValueError(f"Librería no disponible en este entorno: {e}")
     # default: gbm
     from sklearn.ensemble import GradientBoostingRegressor
     return GradientBoostingRegressor(n_estimators=100, max_depth=4, learning_rate=0.1, random_state=42)
