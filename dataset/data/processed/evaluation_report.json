@@ -1,0 +1,45 @@
+{
+  "seed": 42,
+  "mape_threshold": 25.0,
+  "train_rows": 730000,
+  "test_rows": 182500,
+  "train_period": {
+    "from": "2013-01-01",
+    "to": "2016-12-31"
+  },
+  "test_period": {
+    "from": "2017-01-01",
+    "to": "2017-12-31"
+  },
+  "features": [
+    "rolling_mean_7",
+    "rolling_mean_14",
+    "freq_per_week",
+    "days_since_last",
+    "stock",
+    "stock_ratio",
+    "dow",
+    "month",
+    "categoria"
+  ],
+  "results": [
+    {
+      "model": "GBM",
+      "mae": 6.4322,
+      "mape": 13.2173,
+      "approved": true,
+      "train_seconds": 57.2
+    }
+  ],
+  "feature_importances_gbm": {
+    "rolling_mean_7": 0.555639,
+    "rolling_mean_14": 0.371607,
+    "dow": 0.069092,
+    "month": 0.003628,
+    "categoria": 1.7e-05,
+    "freq_per_week": 8e-06,
+    "stock_ratio": 5e-06,
+    "stock": 4e-06,
+    "days_since_last": 0.0
+  }
+}

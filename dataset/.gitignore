@@ -1,0 +1,6 @@
+.venv/
+data/raw/stored_item_demand.csv
+data/raw/logistics_warehouse.csv
+data/processed/demand_normalized.csv
+data/processed/events.csv
+data/processed/events_with_features.csv

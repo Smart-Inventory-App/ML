@@ -1,0 +1,20 @@
+{
+  "sources": [
+    {
+      "name": "Store Item Demand Forecasting Challenge",
+      "url": "https://www.kaggle.com/competitions/demand-forecasting-kernels-only/data",
+      "expected_file": "train.csv",
+      "target_path": "data/raw/store_item_demand.csv",
+      "downloaded_at": "2026-09-11",
+      "sha256": "038f25690a65149c94f86ddd3deceda20c037a5cfd754cafdfc539a72992f2ed"
+    },
+    {
+      "name": "Logistics Warehouse Dataset",
+      "url": "https://www.kaggle.com/datasets/ziya07/logistics-warehouse-dataset",
+      "expected_file": "logistics_warehouse.csv",
+      "target_path": "data/raw/logistics_warehouse.csv",
+      "downloaded_at": "2026-09-11",
+      "sha256": "680f1bcc4c7b2171552a51ceed93708d61b7d7747458de364e32643cc4d47292"
+    }
+  ]
+}
