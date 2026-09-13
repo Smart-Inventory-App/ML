@@ -61,6 +61,7 @@ def save_new_version(
     scaler=None,
     feature_importances: dict | None = None,
     model_type: str = "gbm",
+    data_source: str = "real",
 ) -> dict:
     versions = _load_versions()
 
@@ -70,6 +71,7 @@ def save_new_version(
     new_version = {
         "id": version_id,
         "model_type": model_type,
+        "data_source": data_source,
         "trained_at": datetime.now(timezone.utc).isoformat(),
         "mae": round(mae, 4),
         "mape": round(mape, 2),

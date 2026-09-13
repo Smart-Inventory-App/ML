@@ -25,10 +25,17 @@ def list_models():
 
 class TrainRequest(BaseModel):
     model_type: Literal["gbm", "xgboost", "lightgbm", "svr"] = "gbm"
+    data_source: Literal["real", "test"] = "real"
 
 
 @router.post("/train", dependencies=[Depends(_verify_service_token)])
 async def trigger_training(body: TrainRequest = TrainRequest()):
+    if body.data_source == "test":
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="El dataset de prueba todavía no está implementado.",
+        )
+
     try:
         all_events = await backend_client.get_all_consumption()
         all_products = await backend_client.get_all_products()
@@ -64,6 +71,7 @@ async def trigger_training(body: TrainRequest = TrainRequest()):
         n_products=result["n_products"],
         feature_importances=result["feature_importances"],
         model_type=body.model_type,
+        data_source=body.data_source,
     )
 
     return {
