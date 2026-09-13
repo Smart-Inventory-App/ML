@@ -189,6 +189,12 @@ def train(all_events: list[dict], all_products: list[dict], model_type: str = "g
     mae_daily = float(mean_absolute_error(y_test, y_pred))
     mae_weekly = mae_daily * 7
 
+    # Error relativo ponderado por volumen (WAPE). El MAE absoluto no es
+    # comparable entre escalas: 15 u/sem es 4% para un comercio que mueve 366
+    # u/sem y un disparate para una heladera que consume 3.
+    denom = float(np.sum(np.abs(y_test)))
+    mae_relative = float(np.sum(np.abs(y_test - y_pred)) / denom * 100) if denom > 0 else 999.0
+
     mask = y_test > 0
     mape = float(np.mean(np.abs((y_test[mask] - y_pred[mask]) / y_test[mask])) * 100) if mask.any() else 999.0
 
@@ -209,6 +215,7 @@ def train(all_events: list[dict], all_products: list[dict], model_type: str = "g
         "model": model,
         "scaler": scaler,
         "mae": round(mae_weekly, 4),
+        "mae_relative": round(mae_relative, 2),
         "mape": round(mape, 2),
         "n_samples": len(rows_X),
         "n_products": len(by_product),

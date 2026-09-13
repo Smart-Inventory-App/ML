@@ -19,5 +19,10 @@ class Settings(BaseSettings):
     BAYESIAN_PRIOR_ALPHA: float = 1.0
     BAYESIAN_PRIOR_BETA: float = 6.0
 
+    # Criterio de aceptación. Ambas métricas son relativas para que el mismo
+    # umbral sirva en escala doméstica (unidades/semana) y comercial (cientos).
+    MAX_MAE_RELATIVE: float = 25.0  # WAPE — error ponderado por volumen
+    MAX_MAPE: float = 25.0
+
 
 settings = Settings()

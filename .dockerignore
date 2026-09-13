@@ -1,0 +1,10 @@
+.git
+.gitignore
+
+venv/
+__pycache__/
+*.pyc
+
+# Material de análisis: notebooks, datasets crudos e intermedios.
+# El dataset de prueba que usa el servicio vive en app/data/test_dataset/
+dataset/

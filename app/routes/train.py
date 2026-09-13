@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from app.core.config import settings
 from app.predictor import gbm
-from app.services import backend_client, model_store
+from app.services import backend_client, model_store, test_dataset
 
 router = APIRouter(prefix="/models", tags=["models"])
 
@@ -30,15 +30,13 @@ class TrainRequest(BaseModel):
 
 @router.post("/train", dependencies=[Depends(_verify_service_token)])
 async def trigger_training(body: TrainRequest = TrainRequest()):
-    if body.data_source == "test":
-        raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="El dataset de prueba todavía no está implementado.",
-        )
-
     try:
-        all_events = await backend_client.get_all_consumption()
-        all_products = await backend_client.get_all_products()
+        if body.data_source == "test":
+            all_events = test_dataset.load_events()
+            all_products = test_dataset.load_products()
+        else:
+            all_events = await backend_client.get_all_consumption()
+            all_products = await backend_client.get_all_products()
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Error obteniendo datos: {e}")
 
@@ -48,14 +46,19 @@ async def trigger_training(body: TrainRequest = TrainRequest()):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
 
     mae = result["mae"]
+    mae_relative = result["mae_relative"]
     mape = result["mape"]
 
-    rejected = mae > 2.0 or mape > 25.0
+    rejected = mae_relative > settings.MAX_MAE_RELATIVE or mape > settings.MAX_MAPE
     if rejected:
         return {
             "status": "rejected",
-            "reason": f"Métricas no aceptables — MAE={mae} (máx 2.0), MAPE={mape}% (máx 25%)",
+            "reason": (
+                f"Métricas no aceptables — MAE relativo={mae_relative}% "
+                f"(máx {settings.MAX_MAE_RELATIVE}%), MAPE={mape}% (máx {settings.MAX_MAPE}%)"
+            ),
             "mae": mae,
+            "mae_relative": mae_relative,
             "mape": mape,
             "n_samples": result["n_samples"],
             "model_type": body.model_type,
@@ -66,6 +69,7 @@ async def trigger_training(body: TrainRequest = TrainRequest()):
         model=result["model"],
         scaler=result["scaler"],
         mae=mae,
+        mae_relative=mae_relative,
         mape=mape,
         n_samples=result["n_samples"],
         n_products=result["n_products"],
