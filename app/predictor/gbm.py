@@ -19,29 +19,29 @@ FEATURE_NAMES = [
     "categoria",
 ]
 
-_model = None
-_scaler = None
+DEFAULT_SEGMENT = "individuo"
+
+_models: dict[str, tuple] = {}
 
 
-def set_model(model, scaler=None) -> None:
-    global _model, _scaler
-    _model = model
-    _scaler = scaler
+def set_model(model, scaler=None, segment: str = DEFAULT_SEGMENT) -> None:
+    _models[segment] = (model, scaler)
 
 
-def is_trained() -> bool:
-    return _model is not None
+def is_trained(segment: str = DEFAULT_SEGMENT) -> bool:
+    return segment in _models
 
 
-def predict(records: list[dict], product: dict) -> float:
-    if not is_trained():
+def predict(records: list[dict], product: dict, segment: str = DEFAULT_SEGMENT) -> float:
+    if not is_trained(segment):
         return moving_average.predict(records)
     import numpy as np
+    model, scaler = _models[segment]
     features = _build_features(records, product)
     X = np.array([features])
-    if _scaler is not None:
-        X[:, :_NUMERIC_FEATURES] = _scaler.transform(X[:, :_NUMERIC_FEATURES])
-    return float(_model.predict(X)[0])
+    if scaler is not None:
+        X[:, :_NUMERIC_FEATURES] = scaler.transform(X[:, :_NUMERIC_FEATURES])
+    return float(model.predict(X)[0])
 
 
 def _build_features(records: list[dict], product: dict) -> list[float]:
@@ -112,7 +112,8 @@ def _make_regressor(model_type: str):
     return GradientBoostingRegressor(n_estimators=100, max_depth=4, learning_rate=0.1, random_state=42)
 
 
-def train(all_events: list[dict], all_products: list[dict], model_type: str = "gbm") -> dict:
+def train(all_events: list[dict], all_products: list[dict], model_type: str = "gbm",
+          segment: str | None = None) -> dict:
     """
     Entrena el modelo seleccionado con todos los eventos de consumo disponibles.
     Aplica StandardScaler sobre features numéricas y calcula importancia de features.
@@ -124,13 +125,21 @@ def train(all_events: list[dict], all_products: list[dict], model_type: str = "g
     from app.core.config import settings
     from datetime import datetime
 
+    if segment is not None:
+        all_products = [
+            p for p in all_products
+            if (p.get("user_type") or DEFAULT_SEGMENT) == segment
+        ]
+
+    product_map = {p["id"]: p for p in all_products}
+
     from collections import defaultdict
     by_product: dict[int, list[dict]] = defaultdict(list)
     for e in all_events:
-        if e.get("event_type", "consumed") == "consumed":
+        if e.get("event_type", "consumed") != "consumed":
+            continue
+        if e["product_id"] in product_map:
             by_product[e["product_id"]].append(e)
-
-    product_map = {p["id"]: p for p in all_products}
 
     all_cats = list({p.get("categoria", "") or "" for p in all_products})
     le = LabelEncoder()
@@ -189,6 +198,9 @@ def train(all_events: list[dict], all_products: list[dict], model_type: str = "g
     mae_daily = float(mean_absolute_error(y_test, y_pred))
     mae_weekly = mae_daily * 7
 
+    denom = float(np.sum(np.abs(y_test)))
+    mae_relative = float(np.sum(np.abs(y_test - y_pred)) / denom * 100) if denom > 0 else 999.0
+
     mask = y_test > 0
     mape = float(np.mean(np.abs((y_test[mask] - y_pred[mask]) / y_test[mask])) * 100) if mask.any() else 999.0
 
@@ -209,6 +221,7 @@ def train(all_events: list[dict], all_products: list[dict], model_type: str = "g
         "model": model,
         "scaler": scaler,
         "mae": round(mae_weekly, 4),
+        "mae_relative": round(mae_relative, 2),
         "mape": round(mape, 2),
         "n_samples": len(rows_X),
         "n_products": len(by_product),

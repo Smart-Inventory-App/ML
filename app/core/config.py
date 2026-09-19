@@ -19,5 +19,9 @@ class Settings(BaseSettings):
     BAYESIAN_PRIOR_ALPHA: float = 1.0
     BAYESIAN_PRIOR_BETA: float = 6.0
 
+    MAX_MAE_INDIVIDUO: float = 2.0
+    MAX_MAE_COMERCIO: float = 25.0
+    MAX_MAPE: float = 25.0
+
 
 settings = Settings()
