@@ -1,18 +1,8 @@
 """
-Empaqueta el dataset simulado en los dos archivos que consume el servicio ML
-como fuente de entrenamiento de prueba.
+Empaqueta el dataset simulado para el servicio ML.
 
-Entrada (generada por cross_reference.py + simulate_stock.py):
-    data/processed/events.csv          — un registro de consumo por producto/día
-    data/processed/product_params.csv  — parámetros por producto
-
-Salida (en ML/app/data/test_dataset/):
-    events.csv.gz   — date, product_id, quantity
-    products.csv    — id, nombre, categoria, stock, stock_minimo
-
-El stock de cada producto es el del último día simulado, para que la relación
-stock/historial sea la misma que en producción: el stock es "ahora" y los
-eventos son lo que pasó hasta ahora.
+Entrada:  data/processed/events.csv, data/processed/product_params.csv
+Salida:   ML/app/data/test_dataset/{events.csv.gz, products.csv}
 
 Uso:
     python3 scripts/build_test_dataset.py
@@ -30,7 +20,6 @@ OUT = BASE.parent / "app" / "data" / "test_dataset"
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
 
-    # Último stock observado por producto (el CSV viene ordenado por fecha)
     last_stock: dict[str, str] = {}
     n_events = 0
 

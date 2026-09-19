@@ -12,6 +12,8 @@ import joblib
 MODEL_DIR = os.getenv("MODEL_DIR", "/app/model")
 VERSIONS_FILE = os.path.join(MODEL_DIR, "versions.json")
 
+DEFAULT_SEGMENT = "individuo"
+
 
 def _load_versions() -> list[dict]:
     if not os.path.exists(VERSIONS_FILE):
@@ -30,16 +32,16 @@ def list_versions() -> list[dict]:
     return _load_versions()
 
 
-def get_active_version() -> Optional[dict]:
+def get_active_version(segment: str = DEFAULT_SEGMENT) -> Optional[dict]:
     for v in _load_versions():
-        if v.get("status") == "active":
+        if v.get("status") == "active" and v.get("segment", DEFAULT_SEGMENT) == segment:
             return v
     return None
 
 
-def load_active_model() -> tuple | None:
+def load_active_model(segment: str = DEFAULT_SEGMENT) -> tuple | None:
     """Retorna (model, scaler) o None si no hay versión activa."""
-    v = get_active_version()
+    v = get_active_version(segment)
     if v is None:
         return None
     path = os.path.join(MODEL_DIR, v["model_file"])
@@ -63,6 +65,7 @@ def save_new_version(
     feature_importances: dict | None = None,
     model_type: str = "gbm",
     data_source: str = "real",
+    segment: str = DEFAULT_SEGMENT,
 ) -> dict:
     versions = _load_versions()
 
@@ -73,6 +76,7 @@ def save_new_version(
         "id": version_id,
         "model_type": model_type,
         "data_source": data_source,
+        "segment": segment,
         "trained_at": datetime.now(timezone.utc).isoformat(),
         "mae": round(mae, 4),
         "mae_relative": round(mae_relative, 2),
@@ -94,14 +98,15 @@ def save_new_version(
 
 def activate_version(version_id: str) -> Optional[dict]:
     versions = _load_versions()
-    target = None
-    for v in versions:
-        if v["id"] == version_id:
-            v["status"] = "active"
-            target = v
-        elif v["status"] == "active":
-            v["status"] = "inactive"
+    target = next((v for v in versions if v["id"] == version_id), None)
     if target is None:
         return None
+
+    segment = target.get("segment", DEFAULT_SEGMENT)
+    for v in versions:
+        if v.get("segment", DEFAULT_SEGMENT) != segment:
+            continue
+        v["status"] = "active" if v["id"] == version_id else "inactive"
+
     _save_versions(versions)
     return target

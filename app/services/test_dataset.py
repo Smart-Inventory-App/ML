@@ -1,11 +1,4 @@
-"""
-Dataset de prueba: historial de consumo simulado a partir de dos datasets
-públicos de Kaggle (ver dataset/README.md). Se usa como fuente alternativa de
-entrenamiento para demos y para evaluar el modelo de forma reproducible.
-
-Devuelve los datos con la misma forma que `backend_client`, así el
-entrenamiento no distingue entre esta fuente y los datos reales.
-"""
+"""Dataset de prueba simulado (ver dataset/README.md)."""
 import csv
 import gzip
 from datetime import date, datetime, time, timedelta, timezone
@@ -21,12 +14,6 @@ def _to_timestamp(d: date) -> str:
 
 
 def load_events() -> list[dict]:
-    """
-    Eventos de consumo con las fechas ancladas: el último día del dataset
-    se mapea a hoy. Sin esto `days_since_last` valdría miles de días al
-    entrenar y cero en producción, y el modelo aprendería un régimen que
-    nunca va a ver.
-    """
     rows: list[tuple[date, str, int]] = []
     with gzip.open(EVENTS_FILE, "rt", newline="") as f:
         for r in csv.DictReader(f):
@@ -61,6 +48,7 @@ def load_products() -> list[dict]:
                 "categoria": r["categoria"],
                 "stock": int(r["stock"]),
                 "stock_minimo": int(r["stock_minimo"]),
+                "user_type": "comercio",
             }
             for r in csv.DictReader(f)
         ]
