@@ -10,3 +10,5 @@ pandas
 joblib
 pydantic-settings
 pytest
+pytest-cov
+anyio

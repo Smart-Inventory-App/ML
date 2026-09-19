@@ -9,12 +9,16 @@ from app.routes.train import router as train_router
 from app.services import model_store
 
 
+SEGMENTS = ("individuo", "comercio")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    result = model_store.load_active_model()
-    if result:
-        model, scaler = result
-        gbm.set_model(model, scaler)
+    for segment in SEGMENTS:
+        result = model_store.load_active_model(segment)
+        if result:
+            model, scaler = result
+            gbm.set_model(model, scaler, segment=segment)
     yield
 
 
@@ -34,9 +38,14 @@ app.include_router(train_router)
 @app.get("/health")
 def health():
     from app.services.model_store import get_active_version
-    active = get_active_version()
+    active = {s: get_active_version(s) for s in SEGMENTS}
     return {
         "status": "ok",
-        "model_loaded": gbm.is_trained(),
-        "active_version": active["id"] if active else None,
+        "models": {
+            s: {
+                "loaded": gbm.is_trained(s),
+                "active_version": active[s]["id"] if active[s] else None,
+            }
+            for s in SEGMENTS
+        },
     }
