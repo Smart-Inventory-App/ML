@@ -1,5 +1,5 @@
 """Tests del endpoint público de predicción y sus alertas de vencimiento."""
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 from jose import jwt
@@ -7,6 +7,16 @@ from jose import jwt
 from app.core.config import settings
 from app.routes import predict as predict_route
 from tests.conftest import make_events
+
+
+def hoy_utc() -> date:
+    """La fecha que usa el servicio.
+
+    `_expiry_alert` calcula los días restantes contra `datetime.now(timezone.utc)`,
+    no contra la fecha local. Usar `date.today()` acá hace que los tests fallen
+    en cualquier huso al oeste de Greenwich cuando ya cambió el día en UTC.
+    """
+    return datetime.now(timezone.utc).date()
 
 
 def auth_header(sub: str = "user-1") -> dict:
@@ -35,7 +45,7 @@ def test_parse_expiry_sin_fecha():
 
 
 def test_parse_expiry_acepta_objeto_date():
-    hoy = date.today()
+    hoy = hoy_utc()
     assert predict_route._parse_expiry({"vencimiento": hoy}) == hoy
 
 
@@ -56,20 +66,20 @@ def test_sin_vencimiento_no_hay_alerta():
 
 
 def test_producto_vencido_pone_todo_el_stock_en_riesgo():
-    a = predict_route._expiry_alert(10, 1.0, date.today() - timedelta(days=3))
+    a = predict_route._expiry_alert(10, 1.0, hoy_utc() - timedelta(days=3))
     assert a["expiry_alert"] is True
     assert a["units_at_risk"] == 10
     assert a["days_until_expiry"] < 0
 
 
 def test_consumo_lento_deja_unidades_en_riesgo():
-    a = predict_route._expiry_alert(100, 1.0, date.today() + timedelta(days=10))
+    a = predict_route._expiry_alert(100, 1.0, hoy_utc() + timedelta(days=10))
     assert a["expiry_alert"] is True
     assert a["units_at_risk"] == pytest.approx(90.0)
 
 
 def test_consumo_rapido_no_alerta():
-    a = predict_route._expiry_alert(5, 10.0, date.today() + timedelta(days=10))
+    a = predict_route._expiry_alert(5, 10.0, hoy_utc() + timedelta(days=10))
     assert a["expiry_alert"] is False
     assert a["units_at_risk"] == 0
 
@@ -147,7 +157,7 @@ def test_prediccion_con_historial_medio_usa_media_movil(client, monkeypatch):
 
 def test_prediccion_incluye_alerta_de_vencimiento(client, monkeypatch):
     producto = {**PRODUCTO, "stock": 500,
-                "vencimiento": (date.today() + timedelta(days=5)).isoformat()}
+                "vencimiento": (hoy_utc() + timedelta(days=5)).isoformat()}
     fake_backend(monkeypatch, make_events(20, 90), producto)
 
     body = client.get("/predict/1", headers=auth_header()).json()

@@ -4,11 +4,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env")
 
-    JWT_SECRET: str = "change-this-secret-in-production"
+    JWT_SECRET: str
     JWT_ALGORITHM: str = "HS256"
 
     APP_BACKEND_URL: str = "http://localhost:8000"
-    INTERNAL_SERVICE_TOKEN: str = "change-this-internal-token"
+    INTERNAL_SERVICE_TOKEN: str
 
     # Stage thresholds
     MIN_RECORDS_FOR_WMA: int = 10
