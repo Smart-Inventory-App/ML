@@ -1,3 +1,8 @@
+import os
+
+os.environ.setdefault("JWT_SECRET", "test-secret")
+os.environ.setdefault("INTERNAL_SERVICE_TOKEN", "test-internal-token")
+
 from datetime import datetime, timezone, timedelta
 
 import pytest
