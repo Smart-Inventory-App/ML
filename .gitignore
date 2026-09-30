@@ -32,3 +32,9 @@ model/
 # OS
 .DS_Store
 Thumbs.db
+
+# Testing Coverage
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
