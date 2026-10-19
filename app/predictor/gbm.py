@@ -2,6 +2,7 @@
 Stage 3 — Gradient Boosting / XGBoost / LightGBM / SVR.
 Requiere >= 8 semanas de historial. Hasta que haya modelo entrenado, delega a moving_average.
 """
+from app.core.event_types import CONSUMPTION_EVENT_TYPES
 from app.predictor import moving_average
 
 # Solo se normalizan las features numéricas continuas; las one-hot no se tocan.
@@ -136,7 +137,7 @@ def train(all_events: list[dict], all_products: list[dict], model_type: str = "g
     from collections import defaultdict
     by_product: dict[int, list[dict]] = defaultdict(list)
     for e in all_events:
-        if e.get("event_type", "consumed") != "consumed":
+        if e.get("event_type", "consumed") not in CONSUMPTION_EVENT_TYPES:
             continue
         if e["product_id"] in product_map:
             by_product[e["product_id"]].append(e)
