@@ -5,6 +5,7 @@ from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 
 from app.core.config import settings
+from app.core.event_types import CONSUMPTION_EVENT_TYPES
 from app.predictor import gbm
 from app.services import backend_client, model_store, test_dataset
 
@@ -137,7 +138,7 @@ def predict_product_internal(body: PredictProductRequest):
     from app.predictor import bayesian, moving_average
     from app.predictor.stage import determine_stage
 
-    consumed = [e for e in body.events if e.get("event_type", "consumed") == "consumed"]
+    consumed = [e for e in body.events if e.get("event_type", "consumed") in CONSUMPTION_EVENT_TYPES]
     stage = determine_stage(consumed)
 
     if stage == "bayesian":

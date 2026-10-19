@@ -1,6 +1,7 @@
 from datetime import date, datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
+from app.core.event_types import CONSUMPTION_EVENT_TYPES
 from app.core.security import get_current_user
 from app.predictor import bayesian, gbm, moving_average
 from app.predictor.stage import determine_stage
@@ -68,7 +69,7 @@ async def predict_consumption(
             detail="No se pudo obtener datos del backend",
         )
 
-    consumed_records = [r for r in records if r.get("event_type", "consumed") == "consumed"]
+    consumed_records = [r for r in records if r.get("event_type", "consumed") in CONSUMPTION_EVENT_TYPES]
 
     stage = determine_stage(consumed_records)
 

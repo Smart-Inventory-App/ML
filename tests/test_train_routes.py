@@ -239,3 +239,11 @@ def test_predict_sin_stock_no_calcula_agotamiento(client):
     r = client.post("/models/predict-product",
                     json={"events": [], "product": producto}, headers=HEADERS)
     assert r.json()["days_until_stockout"] == 0
+
+
+@pytest.mark.parametrize("tipo", ["sold", "rented"])
+def test_predict_cuenta_ventas_y_alquileres_como_consumo(client, tipo):
+    eventos = [{**e, "event_type": tipo} for e in make_events(20, 90)]
+    r = client.post("/models/predict-product",
+                    json={"events": eventos, "product": PRODUCTO}, headers=HEADERS)
+    assert r.json()["stage"] == "gbm"

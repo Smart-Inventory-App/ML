@@ -164,3 +164,15 @@ def test_prediccion_incluye_alerta_de_vencimiento(client, monkeypatch):
     assert body["expiry_alert"] is True
     assert body["days_until_expiry"] == 5
     assert body["units_at_risk"] > 0
+
+
+@pytest.mark.parametrize("tipo", ["sold", "rented"])
+def test_prediccion_cuenta_ventas_y_alquileres_como_consumo(client, monkeypatch, tipo):
+    consumidos = make_events(10, 90)
+    vendidos = [{**e, "event_type": tipo} for e in make_events(10, 45)]
+    fake_backend(monkeypatch, consumidos + vendidos, PRODUCTO)
+
+    body = client.get("/predict/1", headers=auth_header()).json()
+
+    assert body["data_points"] == 20
+    assert body["expired_events"] == 0

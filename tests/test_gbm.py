@@ -244,3 +244,11 @@ def test_train_categoria_fuera_del_encoder_no_rompe(monkeypatch):
     res = gbm.train(eventos, prods)
     monkeypatch.setattr(pre.LabelEncoder, "transform", original)
     assert res["n_samples"] == 8
+
+
+def test_train_cuenta_ventas_y_alquileres_como_consumos():
+    prods = products(8)
+    ev = events_for([p["id"] for p in prods])
+    solo_ventas = [{**e, "event_type": "sold" if i % 2 else "rented"} for i, e in enumerate(ev)]
+    res = gbm.train(solo_ventas, prods)
+    assert res["n_products"] == 8
